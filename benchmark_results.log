@@ -1,0 +1,17 @@
+[info] Installing dependencies...
+[info] Building HORS_BENCH and BFTVMHORS_BENCH...
+===== tvpdhors Benchmarks @ 2025-11-09T19:04:02Z =====
+Config: config_sample  Iterations: 100
+Message: target/message.bin (size 1024 bytes)
+--- HORS ---
+HORS Benchmark (ITER=100)
+Keygen: 35991 ns (0.036 ms)
+Sign:   avg 3481 ns (0.003 ms), med 3421 ns (0.003 ms)
+Verify: avg 7425 ns (0.007 ms), med 6752 ns (0.007 ms)
+
+--- BFTVMHORS (OHBF) ---
+BFTVMHORS Benchmark (ITER=100)
+Keygen: 2586516 ns (2.587 ms)
+Sign:   avg 5819 ns (0.006 ms), med 5685 ns (0.006 ms)
+Verify: avg 316871 ns (0.317 ms), med 314040 ns (0.314 ms)
+===== Exit statuses: HORS=0, BFTVMHORS=0 =====

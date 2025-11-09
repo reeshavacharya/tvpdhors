@@ -1,0 +1,67 @@
+############
+## MULTITHREAD //TODO
+############
+
+
+############
+## BFTVMHORS
+############
+
+## Number of the messages to be signed
+N = 1
+
+## Rejection sampling
+rejection_sampling = false
+
+## Length of the private keys seeds (in bits)
+sk_seed_len = 256
+
+## Seed file
+seed = ./seed
+
+
+
+############
+## HORS
+############
+
+## HORS t parameter
+t = 128
+
+## HORS k parameter
+k = 16
+
+## HORS l parameter (in bits)
+l = 64
+
+## HORS public key portion size (in bits)
+lpk = 128
+
+
+############
+### SBF/OHBF
+############
+
+## Family of the SBF hash function
+    #  ltc_sha256
+    #  openssl_hash_sha1 openssl_hash_sha2_256  openssl_hash_md5
+    #  fnv64_0 fnv64_1 fnv64_1a
+    #  jenkins_oaat
+    #  jp_aumasson_siphash
+    #  blake2b_256 blake2b_384 blake2b_512
+    #  blake2s_128 blake2s_160 blake2s_224 blake2s_256
+    #  xxhash_32 xxhash_64 xxhash3_64 xxhash3_128
+    #  murmur2_32 murmur2_64(NEED WORK)
+    #  Wyhash
+    #  Cityhash
+
+## Hash function to be used for the BF
+h_family = xxhash3_128
+
+## Size of the bloom filter (in Bytes)
+m = 1024
+
+## Number of hash operations in SBF/mod operations in OHBF
+# In OHBF, the value of the 'h' controls the number of partitions which can be impacted by
+# the current supported primes of the OHBF library. Currently, we support the first 100000 prime numbers.
+h = 27

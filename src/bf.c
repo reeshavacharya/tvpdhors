@@ -106,7 +106,8 @@ void sbf_insert(const sbf_t *sbf, u8 *input, u64 length) {
 
   for (u32 i = 0; i < sbf->num_hash_functions; i++) {
 #ifndef TVHASHOPTIMIZED
-    u32 concat_buffer_length = concat_buffers(concat_buffer, input, length, &i, 4);
+  u8 idx_bytes[4]; memcpy(idx_bytes, &i, 4);
+  u32 concat_buffer_length = concat_buffers(concat_buffer, input, length, idx_bytes, 4);
     u32 hash_size = sbf->hash_functions[i](hash_buffer, concat_buffer, concat_buffer_length);
 #else
     /* We do not concat the index with the input but we add it to it */
@@ -163,7 +164,8 @@ u32 sbf_check(const sbf_t *sbf, u8 *input, u64 length) {
 #endif
     for (u32 i = 0; i < sbf->num_hash_functions; i++) {
 #ifndef TVHASHOPTIMIZED
-        u32 concat_buffer_length = concat_buffers(concat_buffer, input, length, &i, 4);
+  u8 idx_bytes[4]; memcpy(idx_bytes, &i, 4);
+  u32 concat_buffer_length = concat_buffers(concat_buffer, input, length, idx_bytes, 4);
         u32 hash_size = sbf->hash_functions[i](hash_buffer, concat_buffer, concat_buffer_length);
 #else
         /* We do not concat the index with the input but we add it to it */

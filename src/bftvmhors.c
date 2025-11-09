@@ -59,10 +59,12 @@ void bftvmhors_keygen_thread(bftvmhors_keygen_thread_argument_t* args) {
     /* Concatenating the BFTVMHORS private key with index and state sk||i||state
      */
     to_be_inserted = malloc(BITS_2_BYTES(args->hp->l) + 2 * sizeof(u32));
+    u8 j_bytes_thr[4]; memcpy(j_bytes_thr, &j, 4);
+    u8 state_bytes_thr[4]; memcpy(state_bytes_thr, &args->state, 4);
     to_be_inserted_length = concat_buffers(
-            to_be_inserted, hors_sk, BITS_2_BYTES(args->hp->l), &j, sizeof(u32));
+        to_be_inserted, hors_sk, BITS_2_BYTES(args->hp->l), j_bytes_thr, 4);
     to_be_inserted_length = concat_buffers(to_be_inserted, to_be_inserted,
-                                           to_be_inserted_length,&args->state, sizeof(u32));
+                       to_be_inserted_length, state_bytes_thr, 4);
 #endif
 
 #ifdef OHBF
@@ -159,8 +161,10 @@ u32 bftvmhors_keygen(bftvmhors_keys_t* keys, bftvmhors_hp_t* hp) {
 #else
     /* Concatenating the BFTVMHORS private key with index and state as sk||i||state */
     to_be_inserted = malloc(BITS_2_BYTES(hp->l) + 2 * sizeof(u32));
-    to_be_inserted_length = concat_buffers( to_be_inserted, hors_sk, BITS_2_BYTES(hp->l), &j, sizeof(u32));
-    to_be_inserted_length = concat_buffers(to_be_inserted, to_be_inserted, to_be_inserted_length, &i, sizeof(u32));
+    u8 j_bytes[4]; memcpy(j_bytes, &j, 4);
+    u8 i_bytes[4]; memcpy(i_bytes, &i, 4);
+    to_be_inserted_length = concat_buffers( to_be_inserted, hors_sk, BITS_2_BYTES(hp->l), j_bytes, 4);
+    to_be_inserted_length = concat_buffers(to_be_inserted, to_be_inserted, to_be_inserted_length, i_bytes, 4);
 #endif
 
 #ifdef OHBF
@@ -334,7 +338,13 @@ u32 bftvmhors_sign(bftvmhors_signature_t* signature, bftvmhors_signer_t* signer,
     return BFTVMHORS_SIGNING_SUCCESS;
 }
 
-u32 bftvmhors_new_verifier(bftvmhors_verifier_t * verifier, sbf_t* pk) {
+u32 bftvmhors_new_verifier(bftvmhors_verifier_t * verifier,
+#ifdef OHBF
+                           ohbf_t* pk
+#else
+                           sbf_t* pk
+#endif
+                           ) {
     verifier->state = 0;
     verifier->pk = pk;
     return BFTVMHORS_NEW_VERIFIER_SUCCESS;
@@ -379,12 +389,14 @@ u32 bftvmhors_verify(bftvmhors_verifier_t* verifier, bftvmhors_hp_t* hp,
 
 #ifndef TVHASHOPTIMIZED
     /* Concat signature with portion index */
+    u8 portion_bytes[4]; memcpy(portion_bytes, &portion_value, 4);
     to_be_checked_length = concat_buffers(to_be_checked, signature->signature + i * BITS_2_BYTES(hp->l),
-                                          BITS_2_BYTES(hp->l), &portion_value, sizeof(u32));
+                                          BITS_2_BYTES(hp->l), portion_bytes, 4);
 
     /* Concat signature/index with state */
+    u8 state_bytes[4]; memcpy(state_bytes, &verifier->state, 4);
     to_be_checked_length = concat_buffers(to_be_checked, to_be_checked,
-                                          to_be_checked_length, &verifier->state, sizeof(u32));
+                                          to_be_checked_length, state_bytes, 4);
 
 #else
      /* Copying the signature for manipulation */
@@ -533,8 +545,10 @@ u32 bftvmhors_new_hp(bftvmhors_hp_t* new_hp, const u8* config_file) {
             } else if (!strcmp(token, "seed")) {
                 if ((token = strtok(NULL, delim))) {
                     token = str_trim_char(token, '#');
-                    new_hp->seed_file = malloc(strlen(token));
-                    memcpy(new_hp->seed_file, token, strlen(token));
+                    size_t n = strlen(token);
+                    new_hp->seed_file = malloc(n + 1);
+                    memcpy(new_hp->seed_file, token, n);
+                    new_hp->seed_file[n] = '\0';
                 } else
                     return BFTVMHORS_NEW_HP_FAILED;
 
@@ -559,8 +573,10 @@ u32 bftvmhors_new_hp(bftvmhors_hp_t* new_hp, const u8* config_file) {
             } else if (!strcmp(token, "h_family")) {
                 if ((token = strtok(NULL, delim))) {
                     token = str_trim_char(token, '#');
-                    bf_hash_family = malloc(strlen(token));
-                    memcpy(bf_hash_family, token, strlen(token));
+                    size_t n = strlen(token);
+                    bf_hash_family = malloc(n + 1);
+                    memcpy(bf_hash_family, token, n);
+                    bf_hash_family[n] = '\0';
                 } else
                     return BFTVMHORS_NEW_HP_FAILED;
             }
@@ -577,7 +593,8 @@ u32 bftvmhors_new_hp(bftvmhors_hp_t* new_hp, const u8* config_file) {
 
     /* Create the hyper parameter structure of the underlying BF */
 #ifdef OHBF
-    ohbf_new_hp(&new_hp->ohbf_hp, bf_size, ohbf_num_mod_operations, bf_hash_family);
+    /* Config m is in bytes; convert to bits for internal OHBF bit indexing */
+    ohbf_new_hp(&new_hp->ohbf_hp, bf_size * 8, ohbf_num_mod_operations, bf_hash_family);
 #else
     new_hp->sbf_hp = sbf_new_hp(bf_size, sbf_num_hash_functions, bf_hash_family);
 #endif

@@ -77,15 +77,15 @@ u32 ohbf_new_hp(ohbf_hp_t * ohbf_hp, u32 required_size, u32 num_of_mod_operation
 }
 
 u32 ohbf_create(ohbf_t *ohbf, const ohbf_hp_t *ohbf_hp){
+    /* Size is in bits */
     ohbf->size = ohbf_hp->actual_size;
     ohbf->num_of_mod_operations = ohbf_hp->num_of_mod_operations;
 
     ohbf->partitions = ohbf_hp->partitions;
 
-    ohbf->bv = malloc(ohbf->size / 8);
-
-    /* Zero out the bit vector */
-    for (u32 i = 0; i < ohbf->size / 8; i++) ohbf->bv[i] = 0;
+    /* Allocate ceil(size/8) bytes for the bit-vector */
+    u32 bv_bytes = (ohbf->size + 7) / 8;
+    ohbf->bv = calloc(bv_bytes, 1);
 
     if (strcmp(ohbf_hp->hash_family, "ltc_sha256") == 0)
         ohbf->hash_function = ltc_hash_sha2_256;
@@ -140,7 +140,7 @@ u32 ohbf_create(ohbf_t *ohbf, const ohbf_hp_t *ohbf_hp){
 
 void ohbf_destroy(const ohbf_t *ohbf) {
     free(ohbf->bv);
-    free(ohbf->partitions);
+    /* partitions memory is owned by ohbf_hp; do not free here */
 }
 
 
@@ -159,6 +159,11 @@ void ohbf_insert(const ohbf_t *ohbf, const u8 *input, u64 length) {
 #else
     u32 hash_size = TVOPTIMIZED_BFTVMHORS_HASH_FUNCTION(hash_buffer, input, length);
 #endif
+    /* Precompute cumulative bit offsets for partitions to avoid out-of-range access */
+    u32 *part_offsets = malloc(sizeof(u32) * ohbf->num_of_mod_operations);
+    u32 acc = 0;
+    for (u32 i=0;i<ohbf->num_of_mod_operations;i++) { part_offsets[i] = acc; acc += ohbf->partitions[i]; }
+
     for (u32 i = 0; i < ohbf->num_of_mod_operations; i++) {
 
         /* Convert the hash value to BigNum for further evaluations.
@@ -181,11 +186,14 @@ void ohbf_insert(const ohbf_t *ohbf, const u8 *input, u64 length) {
         target_idx = *(unsigned __int128 *)hash_buffer % ohbf->partitions[i];
 #endif
         /* Read the target byte from the target partition and set the appropriate bit and write back */
-        u8 * target_partition = &ohbf->bv[ohbf->partitions[i]];
-        u8 ohbf_target_byte = target_partition[BITS_2_BYTES(target_idx)];
-        ohbf_target_byte |= 1 << (8 - BITS_MOD_BYTES(target_idx) - 1);
-        target_partition[BITS_2_BYTES(target_idx)] = ohbf_target_byte;
+        /* Compute bit index within the whole BV: offset of partition (in bits) + local index */
+        u32 bit_index = part_offsets[i] + (u32)target_idx;
+        u8 * target_partition = ohbf->bv;
+        u8 ohbf_target_byte = target_partition[BITS_2_BYTES(bit_index)];
+        ohbf_target_byte |= 1 << (8 - BITS_MOD_BYTES(bit_index) - 1);
+        target_partition[BITS_2_BYTES(bit_index)] = ohbf_target_byte;
     }
+    free(part_offsets);
 }
 
 
@@ -204,6 +212,11 @@ u32 ohbf_check(const ohbf_t *ohbf, const u8 *input, u64 length) {
 #else
     u32 hash_size = TVOPTIMIZED_BFTVMHORS_HASH_FUNCTION(hash_buffer, input, length);
 #endif
+
+    /* Precompute cumulative bit offsets for partitions */
+    u32 *part_offsets = malloc(sizeof(u32) * ohbf->num_of_mod_operations);
+    u32 acc = 0;
+    for (u32 i=0;i<ohbf->num_of_mod_operations;i++) { part_offsets[i] = acc; acc += ohbf->partitions[i]; }
 
     for (u32 i = 0; i < ohbf->num_of_mod_operations; i++) {
 
@@ -227,12 +240,14 @@ u32 ohbf_check(const ohbf_t *ohbf, const u8 *input, u64 length) {
 #endif
 
         /* Read the target byte from the target partition and check for the set/unset state of the desired bit */
-        u8 * target_partition = &ohbf->bv[ohbf->partitions[i]];
-        u8 ohbf_target_byte = target_partition[BITS_2_BYTES(target_idx)];
-        if (!(ohbf_target_byte & (1 << (8 - BITS_MOD_BYTES(target_idx) - 1)))) {
+        u32 bit_index = part_offsets[i] + (u32)target_idx;
+        u8 * target_partition = ohbf->bv;
+        u8 ohbf_target_byte = target_partition[BITS_2_BYTES(bit_index)];
+        if (!(ohbf_target_byte & (1 << (8 - BITS_MOD_BYTES(bit_index) - 1)))) {
             return OHBF_ELEMENT_ABSENTS;
         }
     }
+    free(part_offsets);
     return OHBF_ELEMENT_EXISTS;
 }
 
